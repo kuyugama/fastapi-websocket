@@ -1,5 +1,5 @@
+import typing
 import traceback
-from typing import Callable, Any, TypeVar, TypedDict, Literal, cast
 
 from fastapi import APIRouter
 from fundi import CallableInfo, scan
@@ -8,61 +8,25 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from . import util
 from .error import BaseRequestError
+from .types import create_event, create_error_event, validate_request, RequestType
 
-Tc = TypeVar("Tc", bound=Callable)
-
-
-class RequestType(TypedDict):
-    id: str
-    type: Literal["request"]
-    endpoint: str
-    data: Any
-
-
-def validate_request(body: Any) -> RequestType | None:
-    if not isinstance(body, dict):
-        return None
-
-    if not isinstance(body.get("id"), str):
-        return None
-
-    if body.get("type") != "request":
-        return None
-
-    if not isinstance(body.get("endpoint"), str):
-        return None
-
-    if "data" not in body:
-        return None
-
-    return cast(
-        RequestType,
-        dict(id=body["id"], type=body["type"], endpoint=body["endpoint"], data=body["data"]),
-    )
-
-
-def create_event(kind: str, data: Any):
-    return {"type": "event", "kind": kind, "data": data}
-
-
-def create_error_event(reason: str, code: str):
-    return create_event("error", {"reason": reason, "code": code})
+Tc = typing.TypeVar("Tc", bound=typing.Callable)
 
 
 class WebsocketDomain:
     def __init__(self, path: str):
         self.path = path
 
-        self.entrypoint: CallableInfo[Any] | None = None
-        self.endpoints: dict[str, CallableInfo[Any]] = {}
-        self.terminator: CallableInfo[Any] | None = None
+        self.entrypoint: CallableInfo[typing.Any] | None = None
+        self.endpoints: dict[str, CallableInfo[typing.Any]] = {}
+        self.terminator: CallableInfo[typing.Any] | None = None
 
     def enter(self, entrypoint: Tc) -> Tc:
         """Register connection handler"""
         self.entrypoint = scan(entrypoint)
         return entrypoint
 
-    def endpoint(self, name: str) -> Callable[[Tc], Tc]:
+    def endpoint(self, name: str) -> typing.Callable[[Tc], Tc]:
         """Register endpoint"""
 
         def register_endpoint(entry: Tc) -> Tc:
@@ -79,12 +43,30 @@ class WebsocketDomain:
     async def __call__(self, websocket: WebSocket):
         await websocket.accept()
 
-        user_scope: dict[str, Any] = {
+        user_scope: dict[str, typing.Any] = {
             "headers": websocket.headers,
             "cookies": websocket.cookies,
             "query_params": websocket.query_params,
             "path_params": websocket.path_params,
         }
+
+        async def _send_event(kind: str, data: typing.Any):
+            try:
+                await websocket.send_json(create_event(kind, data))
+            except Exception as exception:
+                await self._handle_exception(
+                    exception, websocket, {**user_scope, "send_event": None, "send_error": None}
+                )
+
+        async def _send_error(reason: str, code: str):
+            try:
+                await websocket.send_json(create_error_event(reason, code))
+            except Exception as exception:
+                await self._handle_exception(
+                    exception, websocket, {**user_scope, "send_event": None, "send_error": None}
+                )
+
+        user_scope.update(send_event=_send_event, send_error=_send_error)
 
         if self.entrypoint is not None:
             try:
@@ -119,7 +101,7 @@ class WebsocketDomain:
                 await self._handle_exception(exc, websocket, user_scope)
 
     async def _handle_request(
-        self, request: RequestType, websocket: WebSocket, user_scope: dict[str, Any]
+        self, request: RequestType, websocket: WebSocket, user_scope: dict[str, typing.Any]
     ) -> None:
         endpoint = self.endpoints.get(request["endpoint"])
 
@@ -148,7 +130,7 @@ class WebsocketDomain:
         await websocket.send_json({"id": request["id"], "type": "response", "data": response})
 
     async def _handle_exception(
-        self, exception: Exception, websocket: WebSocket, user_scope: dict[str, Any]
+        self, exception: Exception, websocket: WebSocket, user_scope: dict[str, typing.Any]
     ) -> None:
         if isinstance(exception, WebSocketDisconnect):
             await util.fast_inject(
