@@ -125,7 +125,9 @@ class WebsocketDomain:
                 },
             )
         except BaseRequestError as exc:
-            await websocket.send_json({"id": request["id"], "type": "response.error", "data": exc.json()})
+            await websocket.send_json(
+                {"id": request["id"], "type": "response.error", "data": exc.json()}
+            )
             return
 
         response = jsonable_encoder(raw_response)
@@ -142,7 +144,6 @@ class WebsocketDomain:
 
         await websocket.send_json(create_error_event("Internal server error", "internal-error"))
         traceback.print_exception(exception)
-
 
     def connect_to_fastapi(self, router: APIRouter):
         """Connect websocket domain to FastAPI router"""

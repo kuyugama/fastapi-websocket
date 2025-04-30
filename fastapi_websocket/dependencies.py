@@ -18,4 +18,3 @@ def from_adapter(adapter: TypeAdapter[Tt]) -> Tt:
         return adapter.validate_python(request_data)
 
     return from_(validator)
-
