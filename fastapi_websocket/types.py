@@ -44,7 +44,7 @@ class SendEvent(typing.Protocol):
         """Send event to websocket"""
 
 
-class SendEvent(typing.Protocol):
+class SendError(typing.Protocol):
     @staticmethod
     async def __call__(reason: str, code: str):
         """Send error event to websocket"""
