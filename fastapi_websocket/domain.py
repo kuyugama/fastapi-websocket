@@ -74,6 +74,8 @@ class WebsocketDomain:
                     self.entrypoint,
                     {
                         "ws": websocket,
+                        "send_event": _send_event,
+                        "send_error": _send_error,
                         "query_params": websocket.query_params,
                         "path_params": websocket.path_params,
                         "headers": websocket.headers,
