@@ -44,10 +44,11 @@ async def enter(
     context.update(game_id=game_id)
     
     # game_manager.create_game(game_id)
+
+    yield {"success": True}  # <== This will be sent in "init" event
     
+    # This will be sent after "init" event was successfully sent
     await send_event("game:state", {"status": "init", "player_count": 1})
-    
-    return {"success": True}
 
 
 @route.endpoint("move")
