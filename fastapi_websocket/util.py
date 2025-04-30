@@ -1,5 +1,5 @@
 import typing
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 
 from fundi import ainject, scan, CallableInfo
 
@@ -38,3 +38,30 @@ async def fast_inject(where: Injectable[typing.Any], scope: Scope) -> typing.Any
 
     async with AsyncExitStack() as stack:
         return await ainject(scope, where, stack)
+
+
+@typing.overload
+async def inline_inject(
+    where: Injectable[Lifespan[R]],
+    scope: Scope,
+) -> typing.AsyncContextManager[R]: ...
+@typing.overload
+async def inline_inject(
+    where: Injectable[typing.Awaitable[R]],
+    scope: Scope,
+) -> typing.AsyncContextManager[R]: ...
+@typing.overload
+async def inline_inject(
+    where: Injectable[R],
+    scope: Scope,
+) -> typing.AsyncContextManager[R]: ...
+@asynccontextmanager
+async def inline_inject(
+    where: Injectable[typing.Any], scope: Scope
+) -> AsyncLifespan[typing.Any]:
+    """Utility function to inject dependencies without bothering setting up exit stack"""
+    if not isinstance(where, CallableInfo):
+        where = scan(where)
+
+    async with AsyncExitStack() as stack:
+        yield await ainject(scope, where, stack)

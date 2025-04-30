@@ -70,22 +70,21 @@ class WebsocketDomain:
 
         if self.entrypoint is not None:
             try:
-                raw_response = await util.fast_inject(
-                    self.entrypoint,
-                    {
-                        "ws": websocket,
-                        "send_event": _send_event,
-                        "send_error": _send_error,
-                        "query_params": websocket.query_params,
-                        "path_params": websocket.path_params,
-                        "headers": websocket.headers,
-                        "cookies": websocket.cookies,
-                        "scope": user_scope,
-                        "context": user_scope,
-                    },
-                )
-                response = jsonable_encoder(raw_response)
-                await websocket.send_json(create_event("init", response))
+                scope = {
+                    "ws": websocket,
+                    "send_event": _send_event,
+                    "send_error": _send_error,
+                    "query_params": websocket.query_params,
+                    "path_params": websocket.path_params,
+                    "headers": websocket.headers,
+                    "cookies": websocket.cookies,
+                    "scope": user_scope,
+                    "context": user_scope,
+                }
+                async with util.inline_inject(self.entrypoint, scope) as raw_response:
+                    response = jsonable_encoder(raw_response)
+                    await websocket.send_json(create_event("init", response))
+
             except Exception as exc:
                 await self._handle_exception(exc, websocket, user_scope)
 
@@ -112,7 +111,7 @@ class WebsocketDomain:
             return
 
         try:
-            raw_response = await util.fast_inject(
+            async with util.inline_inject(
                 endpoint,
                 {
                     **user_scope,
@@ -121,15 +120,16 @@ class WebsocketDomain:
                     "scope": user_scope,
                     "context": user_scope,
                 },
-            )
+            ) as raw_response:
+                response = jsonable_encoder(raw_response)
+                await websocket.send_json(
+                    {"id": request["id"], "type": "response", "data": response}
+                )
         except BaseRequestError as exc:
             await websocket.send_json(
                 {"id": request["id"], "type": "response.error", "data": exc.json()}
             )
             return
-
-        response = jsonable_encoder(raw_response)
-        await websocket.send_json({"id": request["id"], "type": "response", "data": response})
 
     async def _handle_exception(
         self, exception: Exception, websocket: WebSocket, user_scope: dict[str, typing.Any]
