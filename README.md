@@ -15,9 +15,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from fundi import from_, FromType
 from starlette.websockets import WebSocket
-
+from fastapi_websocket import from_model, SendEvent
 from fastapi_websocket.domain import WebsocketDomain
-from fastapi_websocket import from_model, RequestError
 
 
 class Move(BaseModel):
@@ -34,8 +33,9 @@ route = WebsocketDomain("/ws")
 
 @route.enter
 async def enter(
-        context: dict,
-        game_id: int = from_(require_game_id),
+    context: dict,
+    send_event: SendEvent,
+    game_id: int = from_(require_game_id),
 ):
     """New connection established"""
     print(f"Entered game {game_id = }")
@@ -44,6 +44,8 @@ async def enter(
     context.update(game_id=game_id)
     
     # game_manager.create_game(game_id)
+    
+    await send_event("game:state", {"status": "init", "player_count": 1})
     
     return {"success": True}
 
