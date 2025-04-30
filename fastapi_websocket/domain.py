@@ -79,12 +79,26 @@ class WebsocketDomain:
     async def __call__(self, websocket: WebSocket):
         await websocket.accept()
 
-        user_scope: dict[str, Any] = {}
+        user_scope: dict[str, Any] = {
+            "headers": websocket.headers,
+            "cookies": websocket.cookies,
+            "query_params": websocket.query_params,
+            "path_params": websocket.path_params,
+        }
 
         if self.entrypoint is not None:
             try:
                 raw_response = await util.fast_inject(
-                    self.entrypoint, {"ws": websocket, "scope": user_scope, "context": user_scope}
+                    self.entrypoint,
+                    {
+                        "ws": websocket,
+                        "query_params": websocket.query_params,
+                        "path_params": websocket.path_params,
+                        "headers": websocket.headers,
+                        "cookies": websocket.cookies,
+                        "scope": user_scope,
+                        "context": user_scope,
+                    },
                 )
                 response = jsonable_encoder(raw_response)
                 await websocket.send_json(create_event("init", response))
