@@ -11,12 +11,12 @@ This library implements convenient websocket connection handler
 ```python
 import logging
 
+from fundi import FromType
 from fastapi import FastAPI
 from pydantic import BaseModel
-from fundi import from_, FromType
 from starlette.websockets import WebSocket
-from fastapi_websocket import from_model, SendEvent
 from fastapi_websocket.domain import WebsocketDomain
+from fastapi_websocket import from_model, SendEvent, from_query
 
 
 class Move(BaseModel):
@@ -35,12 +35,13 @@ route = WebsocketDomain("/ws")
 async def enter(
     context: dict,
     send_event: SendEvent,
-    game_id: int = from_(require_game_id),
+    game_id: int = from_query("game_id", int),
 ):
     """New connection established"""
     print(f"Entered game {game_id = }")
-    print(f"{context.get('state') = }")
 
+    # You can set any values into user context to use it in endpoints or terminator handler
+    # It is possible thanks to FunDIs scopes
     context.update(game_id=game_id)
     
     # game_manager.create_game(game_id)
@@ -52,15 +53,18 @@ async def enter(
 
 
 @route.endpoint("move")
-async def some_action(
-        game_id: int, move: Move = from_model(Move)
+def some_action(
+        game_id: int,  # game_id was set to context inside entrypoint function
+        move: Move = from_model(Move)
 ):
     print(f"Endpoint 'move' called with {move} {game_id = }")
+    
+    # game_manager.get_game(game_id).move(move)
     return {"success": True}
 
 
-@route.exit()
-async def disconnect(game_id: int):
+@route.exit
+def disconnect(game_id: int):
     """Connection was closed during sending an event or response"""
     
     # game_manager.close_game(game_id)
