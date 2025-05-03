@@ -92,7 +92,7 @@ class WebsocketDomain:
                     await websocket.send_json(create_event("init", response))
 
             except Exception as exc:
-                await _handle_exception(exc, websocket, user_scope)
+                await _handle_exception(exc, websocket)
 
         async for message in websocket.iter_json():
             request = validate_request(message)
@@ -105,7 +105,7 @@ class WebsocketDomain:
             try:
                 await self._handle_request(request, websocket, user_scope)
             except Exception as exc:
-                await _handle_exception(exc, websocket, user_scope)
+                await _handle_exception(exc, websocket)
 
         await util.fast_inject(
             self.terminator, {**user_scope, "scope": user_scope, "context": user_scope}
