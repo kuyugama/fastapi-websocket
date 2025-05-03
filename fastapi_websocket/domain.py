@@ -107,9 +107,10 @@ class WebsocketDomain:
             except Exception as exc:
                 await _handle_exception(exc, websocket)
 
-        await util.fast_inject(
-            self.terminator, {**user_scope, "scope": user_scope, "context": user_scope}
-        )
+        if self.terminator is not None:
+            await util.fast_inject(
+                self.terminator, {**user_scope, "scope": user_scope, "context": user_scope}
+            )
 
     async def _handle_request(
         self, request: RequestType, websocket: WebSocket, user_scope: dict[str, typing.Any]
