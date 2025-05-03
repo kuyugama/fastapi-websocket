@@ -13,6 +13,16 @@ from .types import create_event, create_error_event, validate_request, RequestTy
 Tc = typing.TypeVar("Tc", bound=typing.Callable)
 
 
+async def _handle_exception(
+        exception: Exception, websocket: WebSocket
+) -> None:
+    if isinstance(exception, WebSocketDisconnect):
+        return
+
+    await websocket.send_json(create_error_event("Internal server error", "internal-error"))
+    traceback.print_exception(exception)
+
+
 class WebsocketDomain:
     def __init__(self, path: str):
         self.path = path
@@ -54,17 +64,13 @@ class WebsocketDomain:
             try:
                 await websocket.send_json(create_event(kind, data))
             except Exception as exception:
-                await self._handle_exception(
-                    exception, websocket, {**user_scope, "send_event": None, "send_error": None}
-                )
+                await _handle_exception(exception, websocket)
 
         async def _send_error(reason: str, code: str):
             try:
                 await websocket.send_json(create_error_event(reason, code))
             except Exception as exception:
-                await self._handle_exception(
-                    exception, websocket, {**user_scope, "send_event": None, "send_error": None}
-                )
+                await _handle_exception(exception, websocket)
 
         user_scope.update(send_event=_send_event, send_error=_send_error)
 
@@ -86,7 +92,7 @@ class WebsocketDomain:
                     await websocket.send_json(create_event("init", response))
 
             except Exception as exc:
-                await self._handle_exception(exc, websocket, user_scope)
+                await _handle_exception(exc, websocket, user_scope)
 
         async for message in websocket.iter_json():
             request = validate_request(message)
@@ -99,7 +105,11 @@ class WebsocketDomain:
             try:
                 await self._handle_request(request, websocket, user_scope)
             except Exception as exc:
-                await self._handle_exception(exc, websocket, user_scope)
+                await _handle_exception(exc, websocket, user_scope)
+
+        await util.fast_inject(
+            self.terminator, {**user_scope, "scope": user_scope, "context": user_scope}
+        )
 
     async def _handle_request(
         self, request: RequestType, websocket: WebSocket, user_scope: dict[str, typing.Any]
@@ -130,18 +140,6 @@ class WebsocketDomain:
                 {"id": request["id"], "type": "response.error", "data": exc.json()}
             )
             return
-
-    async def _handle_exception(
-        self, exception: Exception, websocket: WebSocket, user_scope: dict[str, typing.Any]
-    ) -> None:
-        if isinstance(exception, WebSocketDisconnect):
-            await util.fast_inject(
-                self.terminator, {**user_scope, "scope": user_scope, "context": user_scope}
-            )
-            return
-
-        await websocket.send_json(create_error_event("Internal server error", "internal-error"))
-        traceback.print_exception(exception)
 
     def connect_to_fastapi(self, router: APIRouter):
         """Connect websocket domain to FastAPI router"""
