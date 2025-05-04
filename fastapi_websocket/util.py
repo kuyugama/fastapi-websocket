@@ -59,7 +59,14 @@ async def inline_inject(
 async def inline_inject(
     where: Injectable[typing.Any], scope: Scope
 ) -> AsyncLifespan[typing.Any]:
-    """Utility function to inject dependencies without bothering setting up exit stack"""
+    """
+    Utility function to inject dependencies without bothering setting up exit stack.
+
+    Useful when working with lifespan-dependencies, that can return value and then continue work.
+
+    For example - endpoint handler, it can yield value and then cleanup resource, commit values to database, write logs
+    or send webhooks to another servers
+    """
     if not isinstance(where, CallableInfo):
         where = scan(where)
 
