@@ -1,3 +1,4 @@
+import asyncio
 import typing
 import traceback
 
@@ -19,8 +20,8 @@ async def _handle_exception(
     if isinstance(exception, WebSocketDisconnect):
         return
 
-    await websocket.send_json(create_error_event("Internal server error", "internal-error"))
     traceback.print_exception(exception)
+    await websocket.send_json(create_error_event("Internal server error", "internal-error"))
 
 
 class WebsocketDomain:
@@ -53,7 +54,7 @@ class WebsocketDomain:
     async def __call__(self, websocket: WebSocket):
         await websocket.accept()
 
-        user_scope: dict[str, typing.Any] = {
+        user_context: dict[str, typing.Any] = {
             "headers": websocket.headers,
             "cookies": websocket.cookies,
             "query_params": websocket.query_params,
@@ -72,7 +73,7 @@ class WebsocketDomain:
             except Exception as exception:
                 await _handle_exception(exception, websocket)
 
-        user_scope.update(send_event=_send_event, send_error=_send_error)
+        user_context.update(send_event=_send_event, send_error=_send_error)
 
         if self.entrypoint is not None:
             try:
@@ -84,8 +85,7 @@ class WebsocketDomain:
                     "path_params": websocket.path_params,
                     "headers": websocket.headers,
                     "cookies": websocket.cookies,
-                    "scope": user_scope,
-                    "context": user_scope,
+                    "context": user_context,
                 }
                 async with util.inline_inject(self.entrypoint, scope) as raw_response:
                     response = jsonable_encoder(raw_response)
@@ -102,34 +102,30 @@ class WebsocketDomain:
                 )
                 continue
 
-            try:
-                await self._handle_request(request, websocket, user_scope)
-            except Exception as exc:
-                await _handle_exception(exc, websocket)
+            asyncio.create_task(self._handle_request(request, websocket, user_context), name="handle-request")
 
         if self.terminator is not None:
             await util.fast_inject(
-                self.terminator, {**user_scope, "scope": user_scope, "context": user_scope}
+                self.terminator, {**user_context, "context": user_context}
             )
 
     async def _handle_request(
-        self, request: RequestType, websocket: WebSocket, user_scope: dict[str, typing.Any]
+        self, request: RequestType, websocket: WebSocket, user_context: dict[str, typing.Any]
     ) -> None:
-        endpoint = self.endpoints.get(request["endpoint"])
-
-        if endpoint is None:
-            await websocket.send_json(create_error_event("Invalid endpoint", "invalid-endpoint"))
-            return
-
         try:
+            endpoint = self.endpoints.get(request["endpoint"])
+
+            if endpoint is None:
+                await websocket.send_json(create_error_event("Invalid endpoint", "invalid-endpoint"))
+                return
+
             async with util.inline_inject(
                 endpoint,
                 {
-                    **user_scope,
+                    **user_context,
                     "ws": websocket,
                     "request_data": request["data"],
-                    "scope": user_scope,
-                    "context": user_scope,
+                    "context": user_context,
                 },
             ) as raw_response:
                 response = jsonable_encoder(raw_response)
@@ -141,6 +137,9 @@ class WebsocketDomain:
                 {"id": request["id"], "type": "response.error", "data": exc.json()}
             )
             return
+
+        except Exception as exc:
+            await _handle_exception(exc, websocket)
 
     def connect_to_fastapi(self, router: APIRouter):
         """Connect websocket domain to FastAPI router"""
