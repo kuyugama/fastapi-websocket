@@ -46,7 +46,7 @@ def from_header(name: str = ..., type_: type[Tt] = ...) -> Tt:
     return from_(validator)
 
 
-def from_cookie(name: str, type_: type[Tt]) -> Tt:
+def from_cookie(name: str = ..., type_: type[Tt] = ...) -> Tt:
     name = None if name is Ellipsis else name
     adapter = None if type_ is Ellipsis else TypeAdapter(type_)
 
@@ -64,7 +64,7 @@ def from_cookie(name: str, type_: type[Tt]) -> Tt:
     return from_(validator)
 
 
-def from_query(name: str, type_: type[Tt]) -> Tt:
+def from_query(name: str = ..., type_: type[Tt] = ...) -> Tt:
     name = None if name is Ellipsis else name
     adapter = None if type_ is Ellipsis else TypeAdapter(type_)
 
@@ -82,7 +82,7 @@ def from_query(name: str, type_: type[Tt]) -> Tt:
     return from_(validator)
 
 
-def from_path(name: str, type_: type[Tt]) -> Tt:
+def from_path(name: str = ..., type_: type[Tt] = ...) -> Tt:
     name = None if name is Ellipsis else name
     adapter = None if type_ is Ellipsis else TypeAdapter(type_)
 
