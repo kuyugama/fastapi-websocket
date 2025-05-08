@@ -56,9 +56,7 @@ async def inline_inject(
     scope: Scope,
 ) -> typing.AsyncContextManager[R]: ...
 @asynccontextmanager
-async def inline_inject(
-    where: Injectable[typing.Any], scope: Scope
-) -> AsyncLifespan[typing.Any]:
+async def inline_inject(where: Injectable[typing.Any], scope: Scope) -> AsyncLifespan[typing.Any]:
     """
     Utility function to inject dependencies without bothering setting up exit stack.
 

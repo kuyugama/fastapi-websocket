@@ -14,9 +14,7 @@ from .types import create_event, create_error_event, validate_request, RequestTy
 Tc = typing.TypeVar("Tc", bound=typing.Callable)
 
 
-async def _handle_exception(
-        exception: Exception, websocket: WebSocket
-) -> None:
+async def _handle_exception(exception: Exception, websocket: WebSocket) -> None:
     if isinstance(exception, WebSocketDisconnect):
         return
 
@@ -102,12 +100,12 @@ class WebsocketDomain:
                 )
                 continue
 
-            asyncio.create_task(self._handle_request(request, websocket, user_context), name="handle-request")
+            asyncio.create_task(
+                self._handle_request(request, websocket, user_context), name="handle-request"
+            )
 
         if self.terminator is not None:
-            await util.fast_inject(
-                self.terminator, {**user_context, "context": user_context}
-            )
+            await util.fast_inject(self.terminator, {**user_context, "context": user_context})
 
     async def _handle_request(
         self, request: RequestType, websocket: WebSocket, user_context: dict[str, typing.Any]
@@ -116,7 +114,9 @@ class WebsocketDomain:
             endpoint = self.endpoints.get(request["endpoint"])
 
             if endpoint is None:
-                await websocket.send_json(create_error_event("Invalid endpoint", "invalid-endpoint"))
+                await websocket.send_json(
+                    create_error_event("Invalid endpoint", "invalid-endpoint")
+                )
                 return
 
             async with util.inline_inject(
